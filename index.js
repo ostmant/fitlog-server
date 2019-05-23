@@ -6,33 +6,11 @@ const bodyParser = require('body-parser')
  
 app.use(cors())
 app.use(bodyParser.json())
-
-let exercises = [
-    {
-      id: 1,
-      description: 'Running',
-      date: '2017-12-10T17:30:31.098Z',
-      category: '',
-    },
-    {
-      id: 2,
-      description: 'Cycling',
-      date: '2017-12-10T17:30:31.098Z',
-      category: '',
-    },
-    {
-      id: 3,
-      description: 'Walking ',
-      date: '2017-12-10T17:30:31.098Z',
-      category: '',
-    },
-  ]
-
+const mongodb = require('mongodb');
+const MongoClient = require('mongodb').MongoClient;
+const url = "mongodb://localhost:27017/";
 
   app.get('/exercises', (req,res) => {
-    const MongoClient = require('mongodb').MongoClient;
-    const url = "mongodb://localhost:27017/";
-    
     MongoClient.connect(url, function(err, db){
     if (err) throw err;
     let dbo = db.db("exercises");
@@ -48,28 +26,57 @@ let exercises = [
   app.get('/exercises/:id', (request, response) => {
     const id = Number(request.params.id)
     console.log(id)
-    const exercise = exercises.find(exercise => exercise.id === id)
-    console.log('Get one exercise')     
-    response.json(exercise)
-  })
-
+    MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+     var dbo = db.db("exercises");
+    var query = { _id:id };
+    dbo.collection("exercises").find(query).toArray(function(err, result) {
+    if (err) throw err;
+    console.log(result);
+    response.json(result);
+    db.close();
+  });
+}); 
+  })     
   app.delete('/exercises/:id', (request, response) => {
-    const id = Number(request.params.id);
-    exercises = exercises.filter(exercise => exercise.id !== id);
-    console.log(`deleted exercise id: ${id}`)
-  
+    const id = request.params.id
+    console.log(id)
+    MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+     var dbo = db.db("exercises");
+    var query = { _id:new mongodb.ObjectID(id) };
+    dbo.collection("exercises").deleteOne(query),(function(err, result) {
+    if (err) throw err;
+    console.log(result);
     response.status(204).end();
+    db.close();
+  });
+}); 
+
   });
 
   const generateId = () => {
-    const maxId = exercises.length>0 ? Math.max(...exercises.map(n => n.id)):0
-    return maxId+1
-  }
+    MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("exercises");
+    let maxId=0;
+    dbo.collection("exercises").countDocuments().then(res => {
+        console.log(res);
+        maxID = res;
+        console.log(maxId);
+        db.close();
+    
+        
+    })
+    return maxId+1;
+    });
+  };
 
   app.post('/exercises', (request, response) => {
     const body = request.body
+    console.log(body);
     
-    if (!body.content){
+    if (body.content){
         return response.status(400).json({
             error: 'content missing'
         })
@@ -77,17 +84,20 @@ let exercises = [
     }
 
     const exercise = {
-        content: body.content,
-        important: body.important || false,
+        _id: generateId(),
+        description: body['description'],
         date: new Date(),
-        id: generateId()
+        category: " ",   
     }
-
-    exercises.concat(exercise)
-    exercises.join(exercise)
-    console.log(exercise)
-  
-    response.json(exercises)
+    MongoClient.connect(url, function(err, db) {
+        if (err) throw err;
+        var dbo = db.db("exercises");
+        console.log(exercise);
+        console.log(exercise._id);
+        dbo.collection("exercises").insertOne(exercise);
+        db.close();
+    })
+   
   })
 
   const PORT = 3001
